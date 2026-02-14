@@ -28,11 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. Clicking the extension icon opens a popup window (even if minimal/placeholder content)
   3. Service worker initializes and handles lifecycle events without crashing
   4. A test request to OpenGradient's x402 LLM endpoint returns a successful response from the service worker
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 01-01: WXT project scaffold + Manifest V3 + service worker + popup shell
-- [ ] 01-02: x402 gateway integration spike from service worker (validate or pivot)
+- [ ] 01-01-PLAN.md -- WXT scaffold + MV3 manifest + service worker + popup shell + extension icons
+- [ ] 01-02-PLAN.md -- x402 gateway integration spike: client library, key management, end-to-end test
 
 ### Phase 2: Extraction + AI + Storage Pipeline
 **Goal**: User can trigger task extraction on a web page and get structured, TEE-verified tasks stored persistently
