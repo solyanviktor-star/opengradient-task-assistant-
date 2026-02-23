@@ -14,7 +14,7 @@ export default defineConfig({
     permissions: ['storage', 'activeTab'],
     host_permissions: [
       'https://llmogevm.opengradient.ai/*',
-      'https://rpc.opengradient.ai/*',
+      'https://sepolia.base.org/*',
     ],
   },
 });

@@ -14,7 +14,7 @@ export function createX402Client(privateKey: `0x${string}`) {
   const account = privateKeyToAccount(privateKey);
 
   const client = new x402Client().register(
-    "eip155:10744",
+    "eip155:84532",
     new ExactEvmScheme(account),
   );
 
