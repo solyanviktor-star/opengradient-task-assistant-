@@ -12,7 +12,7 @@ This roadmap delivers an AI-powered Chrome extension that extracts tasks from we
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Extension Shell + x402 Spike** - Working MV3 extension that proves OpenGradient x402 gateway works from a service worker
+- [x] **Phase 1: Extension Shell + x402 Spike** - Working MV3 extension that proves OpenGradient x402 gateway works from a service worker
 - [ ] **Phase 2: Extraction + AI + Storage Pipeline** - End-to-end flow from page content to TEE-verified AI extraction to stored tasks
 - [ ] **Phase 3: Task UI + Privacy Verification** - User-facing task management with TEE verification badges and on-chain proof display
 - [ ] **Phase 4: Reminders + Search** - Push notification reminders and semantic search over stored tasks
@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- WXT scaffold + MV3 manifest + service worker + popup shell + extension icons
-- [ ] 01-02-PLAN.md -- x402 gateway integration spike: client library, key management, end-to-end test
+- [x] 01-01-PLAN.md -- WXT scaffold + MV3 manifest + service worker + popup shell + extension icons
+- [x] 01-02-PLAN.md -- x402 gateway integration spike: client library, key management, end-to-end test
 
 ### Phase 2: Extraction + AI + Storage Pipeline
 **Goal**: User can trigger task extraction on a web page and get structured, TEE-verified tasks stored persistently
@@ -89,7 +89,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Extension Shell + x402 Spike | 0/2 | Not started | - |
+| 1. Extension Shell + x402 Spike | 2/2 | Complete | 2026-03-01 |
 | 2. Extraction + AI + Storage Pipeline | 0/3 | Not started | - |
 | 3. Task UI + Privacy Verification | 0/2 | Not started | - |
 | 4. Reminders + Search | 0/2 | Not started | - |
