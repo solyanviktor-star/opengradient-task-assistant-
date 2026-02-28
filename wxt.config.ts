@@ -13,7 +13,7 @@ export default defineConfig({
     version: '0.1.0',
     permissions: ['storage', 'activeTab'],
     host_permissions: [
-      'https://llmogevm.opengradient.ai/*',
+      'https://llm.opengradient.ai/*',
       'https://sepolia.base.org/*',
     ],
   },
