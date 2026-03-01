@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-14)
 ## Current Position
 
 Phase: 2 of 4 (Extraction + AI + Storage Pipeline)
-Plan: 2 of 3 in current phase -- COMPLETE (02-02)
-Status: Executing Phase 2 plans
-Last activity: 2026-03-01 -- Completed 02-02-PLAN.md (AI Task Extraction Pipeline)
+Plan: 2 of 3 in current phase -- COMPLETE (02-01, 02-02)
+Status: Executing Phase 2 plans -- ready for 02-03
+Last activity: 2026-03-01 -- Completed 02-01-PLAN.md (Content Extraction Layer)
 
 Progress: [████░░░░░░] 40%
 
@@ -59,6 +59,8 @@ Recent decisions affecting current work:
 - [02-02]: Parser never throws -- always returns array (empty on failure) for resilient pipeline
 - [02-02]: RawTask type defined in task-extractor.ts (intermediate shape before enrichment)
 - [02-02]: extractTasksWithProof uses individual settlement (SETTLE_METADATA) for TEE attestation
+- [02-01]: Content scripts placed at entrypoints/*.content.ts (WXT convention) not entrypoints/content/ subdirectory
+- [02-01]: Generic text selection script chosen as second platform instead of Gmail (universal, zero maintenance)
 
 ### Pending Todos
 
@@ -73,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed 02-02-PLAN.md (AI Task Extraction Pipeline). Ready for 02-03.
+Stopped at: Completed 02-01-PLAN.md (Content Extraction Layer). Plans 02-01 and 02-02 both done. Ready for 02-03.
 Resume file: None
