@@ -44,12 +44,12 @@ Plans:
   3. Tasks survive browser restart (persist in both local cache and MemSync)
   4. Each AI inference returns a cryptographic attestation and on-chain transaction hash
   5. Content extraction works on at least one additional platform beyond Telegram Web
-**Plans**: TBD
+**Plans:** 3 plans
 
 Plans:
-- [ ] 02-01: Content scripts for Telegram Web + one additional platform
-- [ ] 02-02: OpenGradient LLM integration with TEE-verified structured task extraction
-- [ ] 02-03: Dual storage (chrome.storage.local + MemSync) with task persistence
+- [ ] 02-01-PLAN.md -- Content scripts for Telegram Web + generic text selection (second platform), shared types
+- [ ] 02-02-PLAN.md -- Task extraction prompt engineering, LLM response parser, x402 inference with TEE attestation
+- [ ] 02-03-PLAN.md -- Dual storage (chrome.storage.local + MemSync), background orchestration, popup UI integration
 
 ### Phase 3: Task UI + Privacy Verification
 **Goal**: User can view, manage, and verify the privacy of all their extracted tasks through the popup interface
