@@ -15,6 +15,8 @@ export default defineConfig({
     host_permissions: [
       'https://llm.opengradient.ai/*',
       'https://sepolia.base.org/*',
+      'https://api.memchat.io/*',
+      'https://web.telegram.org/*',
     ],
   },
 });
