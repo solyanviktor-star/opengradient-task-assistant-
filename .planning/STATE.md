@@ -5,33 +5,34 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Automatically capture action items from any web content and remind users at the right time, with cryptographic proof of privacy through TEE.
-**Current focus:** Phase 1 COMPLETE -- Moving to Phase 2
+**Current focus:** Phase 2 -- Extraction + AI + Storage Pipeline
 
 ## Current Position
 
-Phase: 1 of 4 (Extension Shell + x402 Spike) -- COMPLETE
-Plan: 2 of 2 in current phase -- COMPLETE
-Status: Phase 1 Done, ready for Phase 2 planning
-Last activity: 2026-03-01 -- Completed 01-02-PLAN.md (x402 Gateway Spike)
+Phase: 2 of 4 (Extraction + AI + Storage Pipeline)
+Plan: 2 of 3 in current phase -- COMPLETE (02-02)
+Status: Executing Phase 2 plans
+Last activity: 2026-03-01 -- Completed 02-02-PLAN.md (AI Task Extraction Pipeline)
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: mixed (Plan 01: 4min, Plan 02: multi-session spike)
-- Total execution time: ~3 sessions
+- Total plans completed: 4
+- Average duration: mixed (Plan 01-01: 4min, Plan 01-02: multi-session spike, Plan 02-01: ~2min, Plan 02-02: 2min)
+- Total execution time: ~4 sessions
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-extension-shell-x402-spike | 2/2 | ~3 sessions | varies |
+| 02-extraction-ai-storage-pipeline | 2/3 | ~4min | 2min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (4min), 01-02 (multi-session)
-- Trend: Spike required significant debugging of OG's non-standard x402
+- Last 5 plans: 01-01 (4min), 01-02 (multi-session), 02-01 (~2min), 02-02 (2min)
+- Trend: Phase 2 plans executing quickly -- leveraging established x402 patterns
 
 *Updated after each plan completion*
 
@@ -54,6 +55,10 @@ Recent decisions affecting current work:
 - [01-02]: "upto" scheme required -- implemented custom UptoEvmScheme
 - [01-02]: Authorization placeholder + X-SETTLEMENT-TYPE: settle-batch headers required
 - [01-02]: SPIKE VERDICT: PASS -- architecture validated
+- [02-02]: System prompt uses 3 few-shot examples (multi-task, single-task, empty) for deterministic JSON output
+- [02-02]: Parser never throws -- always returns array (empty on failure) for resilient pipeline
+- [02-02]: RawTask type defined in task-extractor.ts (intermediate shape before enrichment)
+- [02-02]: extractTasksWithProof uses individual settlement (SETTLE_METADATA) for TEE attestation
 
 ### Pending Todos
 
@@ -68,5 +73,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-03-01
-Stopped at: Completed Phase 1 (both plans). Ready for Phase 2 planning.
+Stopped at: Completed 02-02-PLAN.md (AI Task Extraction Pipeline). Ready for 02-03.
 Resume file: None
