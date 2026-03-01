@@ -2,6 +2,11 @@ import { wrapFetchWithPayment, x402Client } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm";
 import { privateKeyToAccount } from "viem/accounts";
 import { getAddress, toHex } from "viem";
+import {
+  TASK_EXTRACTION_SYSTEM_PROMPT,
+  parseTasksFromLLMResponse,
+  type RawTask,
+} from "@/lib/task-extractor";
 
 const OG_LLM_ENDPOINT =
   "https://llm.opengradient.ai/v1/chat/completions";
@@ -173,4 +178,75 @@ export async function testLLMCall(x402Fetch: typeof fetch): Promise<{
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+/**
+ * Extract tasks from text using OpenGradient's TEE-verified LLM inference.
+ *
+ * Uses `anthropic/claude-4.0-sonnet` as the primary model (AI-02).
+ * If Claude is unavailable, `openai/gpt-4o` is a proven fallback (tested in Phase 1).
+ *
+ * Settlement mode is `individual` (SETTLE_METADATA) which records full input/output
+ * metadata on-chain for TEE attestation (satisfies AI-05, AI-06, AI-07).
+ *
+ * The transaction hash is extracted from the X-PAYMENT-RESPONSE header (base64-encoded
+ * JSON with a `transaction` field). This hash is the cryptographic reference to the
+ * TEE attestation document on the OpenGradient chain.
+ *
+ * @param x402Fetch - An x402-wrapped fetch client (from createX402Client)
+ * @param text - Raw text to extract tasks from
+ * @returns Raw tasks parsed from LLM output + the on-chain transaction hash (or null)
+ */
+export async function extractTasksWithProof(
+  x402Fetch: typeof fetch,
+  text: string,
+): Promise<{ rawTasks: RawTask[]; txHash: string | null }> {
+  const response = await x402Fetch(OG_LLM_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      // Placeholder authorization -- x402 library handles real payment auth via Permit2
+      Authorization:
+        "Bearer 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+      // SETTLE_METADATA: records full model info, complete input/output, all metadata on-chain
+      "X-SETTLEMENT-TYPE": "individual",
+    },
+    body: JSON.stringify({
+      // Primary model: Claude 4.0 Sonnet (AI-02)
+      // Fallback: "openai/gpt-4o" -- proven working in Phase 1 spike
+      model: "anthropic/claude-4.0-sonnet",
+      messages: [
+        { role: "system", content: TASK_EXTRACTION_SYSTEM_PROMPT },
+        { role: "user", content: text },
+      ],
+      max_tokens: 2000,
+      temperature: 0.1,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(
+      `LLM inference failed: HTTP ${response.status}: ${errorText}`,
+    );
+  }
+
+  // Extract transaction hash from X-PAYMENT-RESPONSE header (base64-encoded JSON)
+  let txHash: string | null = null;
+  const paymentResponse = response.headers.get("x-payment-response");
+  if (paymentResponse) {
+    try {
+      const decoded = JSON.parse(atob(paymentResponse));
+      txHash = decoded.transaction ?? null;
+    } catch {
+      // Header decode failed -- non-fatal, txHash stays null
+    }
+  }
+
+  // Parse LLM response (OpenAI chat completions format)
+  const data = await response.json();
+  const content: string = data.choices?.[0]?.message?.content ?? "";
+  const rawTasks = parseTasksFromLLMResponse(content);
+
+  return { rawTasks, txHash };
 }
