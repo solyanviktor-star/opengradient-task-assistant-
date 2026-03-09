@@ -1,4 +1,5 @@
 import type { Task } from "@/lib/types";
+import VerifyBadge from "./VerifyBadge";
 
 interface TaskCardProps {
   task: Task;
@@ -89,16 +90,19 @@ export default function TaskCard({ task, onComplete, onDelete }: TaskCardProps) 
         </div>
       </div>
 
-      {/* Delete button */}
-      <button
-        onClick={() => onDelete(task.id)}
-        className="flex-shrink-0 mt-0.5 p-0.5 text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none"
-        title="Delete task"
-      >
-        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
+      {/* Badge + Delete */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <VerifyBadge txHash={task.txHash} />
+        <button
+          onClick={() => onDelete(task.id)}
+          className="flex-shrink-0 mt-0.5 p-0.5 text-gray-300 hover:text-red-500 cursor-pointer bg-transparent border-none"
+          title="Delete task"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 }
