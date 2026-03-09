@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Extension Shell + x402 Spike** - Working MV3 extension that proves OpenGradient x402 gateway works from a service worker
 - [x] **Phase 2: Extraction + AI + Storage Pipeline** - End-to-end flow from page content to TEE-verified AI extraction to stored tasks
-- [ ] **Phase 3: Task UI + Privacy Verification** - User-facing task management with TEE verification badges and on-chain proof display
+- [x] **Phase 3: Task UI + Privacy Verification** - User-facing task management with TEE verification badges and on-chain proof display
 - [ ] **Phase 4: Reminders + Search** - Push notification reminders and semantic search over stored tasks
 
 ## Phase Details
@@ -64,8 +64,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Task type extension, storage CRUD, component refactoring with Tailwind, complete/delete operations
-- [ ] 03-02-PLAN.md -- TEE verification badges (VerifyBadge component), on-chain proof links, visual checkpoint
+- [x] 03-01-PLAN.md -- Task type extension, storage CRUD, component refactoring with Tailwind, complete/delete operations
+- [x] 03-02-PLAN.md -- TEE verification badges (VerifyBadge component), on-chain proof links, visual checkpoint
 
 ### Phase 4: Reminders + Search
 **Goal**: User can set reminders on tasks and search through all stored tasks using natural language
@@ -91,5 +91,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 |-------|----------------|--------|-----------|
 | 1. Extension Shell + x402 Spike | 2/2 | Complete | 2026-03-01 |
 | 2. Extraction + AI + Storage Pipeline | 3/3 | Complete | 2026-03-09 |
-| 3. Task UI + Privacy Verification | 0/2 | Not started | - |
+| 3. Task UI + Privacy Verification | 2/2 | Complete | 2026-03-09 |
 | 4. Reminders + Search | 0/2 | Not started | - |
