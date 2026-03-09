@@ -6,11 +6,11 @@ export interface Task {
   priority: 'low' | 'medium' | 'high';
   context: string;               // Additional details
   sourceUrl: string;             // Where extracted from
-  platform: 'telegram' | 'selection' | 'other';
+  platform: 'clipboard' | 'telegram' | 'selection' | 'other';
   createdAt: string;             // ISO 8601
   txHash: string | null;         // On-chain transaction hash from x402 payment
-  memsyncId: string | null;      // MemSync memory ID after cloud sync
-  synced: boolean;               // Whether synced to MemSync
+  completed: boolean;            // Whether task is marked complete
+  completedAt: string | null;    // ISO 8601 timestamp when completed, or null
 }
 
 // Message types for content script -> background communication

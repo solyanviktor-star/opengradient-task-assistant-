@@ -1,6 +1,6 @@
-import { createX402Client, testLLMCall, extractTasksWithProof } from "@/lib/opengradient";
+import { createX402Client, testLLMCall, extractTasksWithProof, extractTasksFromImage } from "@/lib/opengradient";
 import { type Task, generateTaskId } from "@/lib/types";
-import { saveTasksLocally, syncToMemSync, getLocalTasks } from "@/lib/storage";
+import { saveTasksLocally, getLocalTasks, updateTask, deleteTask } from "@/lib/storage";
 
 export default defineBackground(() => {
   console.log("[background] Service worker initialized", {
@@ -17,64 +17,47 @@ export default defineBackground(() => {
     console.log("[background] Received message:", message.type);
 
     // ---------------------------------------------------------------
-    // TRIGGER_EXTRACTION: Full pipeline -- content script -> LLM -> storage
+    // EXTRACT_FROM_CLIPBOARD: Popup sends clipboard content (text or image base64)
     // ---------------------------------------------------------------
-    if (message.type === "TRIGGER_EXTRACTION") {
+    if (message.type === "EXTRACT_FROM_CLIPBOARD") {
       (async () => {
         try {
-          // 1. Get active tab
-          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-          if (!tab?.id) {
-            sendResponse({ success: false, error: "No active tab" });
-            return;
-          }
-
-          // 2. Ask content script to extract text
-          const extraction = await browser.tabs.sendMessage(tab.id, {
-            type: "TRIGGER_EXTRACTION",
-            platform: message.platform ?? "selection",
-          });
-
-          if (!extraction?.text?.trim()) {
-            sendResponse({
-              success: false,
-              error: "No text found. Select text or open a Telegram chat.",
-            });
-            return;
-          }
-
-          // 3. Get private key
-          const { ogPrivateKey } = await chrome.storage.session.get("ogPrivateKey");
+          // 1. Get private key
+          const { ogPrivateKey } = await chrome.storage.local.get("ogPrivateKey");
           if (!ogPrivateKey) {
             sendResponse({ success: false, error: "No private key configured" });
             return;
           }
 
-          // 4. Call LLM via x402
           const x402Fetch = createX402Client(ogPrivateKey as `0x${string}`);
-          const { rawTasks, txHash } = await extractTasksWithProof(x402Fetch, extraction.text);
+          let rawTasks;
+          let txHash: string | null;
 
-          // 5. Enrich tasks
+          // 2. Call LLM via x402 -- text or image
+          if (message.inputType === "image") {
+            // Vision: send screenshot to GPT-4o
+            ({ rawTasks, txHash } = await extractTasksFromImage(x402Fetch, message.imageBase64));
+          } else {
+            // Text: send to Claude 4.0 Sonnet
+            ({ rawTasks, txHash } = await extractTasksWithProof(x402Fetch, message.text));
+          }
+
+          // 3. Enrich tasks
           const enrichedTasks: Task[] = rawTasks.map((raw) => ({
             ...raw,
-            id: generateTaskId(extraction.url ?? tab.url ?? "", raw.action),
-            sourceUrl: extraction.url ?? tab.url ?? "",
-            platform: extraction.platform ?? "other",
+            id: generateTaskId("clipboard", raw.action),
+            sourceUrl: "clipboard",
+            platform: "clipboard" as const,
             createdAt: new Date().toISOString(),
             txHash,
-            memsyncId: null,
-            synced: false,
+            completed: false,
+            completedAt: null,
           }));
 
-          // 6. Save locally
+          // 4. Save locally
           await saveTasksLocally(enrichedTasks);
 
-          // 7. Async sync to MemSync (don't block response)
-          syncToMemSync(enrichedTasks).catch((err) =>
-            console.warn("[background] MemSync sync failed:", err),
-          );
-
-          // 8. Respond to popup
+          // 5. Respond to popup
           sendResponse({ success: true, tasks: enrichedTasks, txHash });
         } catch (err: unknown) {
           sendResponse({
@@ -83,7 +66,7 @@ export default defineBackground(() => {
           });
         }
       })();
-      return true; // Keep message channel open for async sendResponse
+      return true;
     }
 
     // ---------------------------------------------------------------
@@ -97,26 +80,13 @@ export default defineBackground(() => {
     }
 
     // ---------------------------------------------------------------
-    // SAVE_MEMSYNC_KEY: Persist MemSync API key to chrome.storage.local
-    // ---------------------------------------------------------------
-    if (message.type === "SAVE_MEMSYNC_KEY") {
-      chrome.storage.local
-        .set({ memsyncApiKey: message.key })
-        .then(() => sendResponse({ success: true }))
-        .catch((err: Error) =>
-          sendResponse({ success: false, error: err.message }),
-        );
-      return true;
-    }
-
-    // ---------------------------------------------------------------
     // TEST_X402: Validate x402 gateway connectivity (Phase 1 test)
     // ---------------------------------------------------------------
     if (message.type === "TEST_X402") {
       (async () => {
         try {
           const { ogPrivateKey } =
-            await chrome.storage.session.get("ogPrivateKey");
+            await chrome.storage.local.get("ogPrivateKey");
           if (!ogPrivateKey) {
             sendResponse({
               success: false,
@@ -144,12 +114,56 @@ export default defineBackground(() => {
     // SAVE_PRIVATE_KEY: Store wallet key in session storage
     // ---------------------------------------------------------------
     if (message.type === "SAVE_PRIVATE_KEY") {
-      chrome.storage.session
+      chrome.storage.local
         .set({ ogPrivateKey: message.key })
         .then(() => sendResponse({ success: true }))
         .catch((err: Error) =>
           sendResponse({ success: false, error: err.message }),
         );
+      return true;
+    }
+
+    // ---------------------------------------------------------------
+    // COMPLETE_TASK: Toggle task completion state
+    // ---------------------------------------------------------------
+    if (message.type === "COMPLETE_TASK") {
+      (async () => {
+        try {
+          const tasks = await getLocalTasks();
+          const task = tasks.find((t) => t.id === message.taskId);
+          if (!task) {
+            sendResponse({ success: false, error: "Task not found" });
+            return;
+          }
+          const completed = !task.completed;
+          const completedAt = completed ? new Date().toISOString() : null;
+          await updateTask(message.taskId, { completed, completedAt });
+          sendResponse({ success: true });
+        } catch (err: unknown) {
+          sendResponse({
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
+      return true;
+    }
+
+    // ---------------------------------------------------------------
+    // DELETE_TASK: Remove a task from storage
+    // ---------------------------------------------------------------
+    if (message.type === "DELETE_TASK") {
+      (async () => {
+        try {
+          await deleteTask(message.taskId);
+          sendResponse({ success: true });
+        } catch (err: unknown) {
+          sendResponse({
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
       return true;
     }
 
