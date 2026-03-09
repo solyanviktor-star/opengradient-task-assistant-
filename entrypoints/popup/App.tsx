@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Task } from "@/lib/types";
+import { searchTasks } from "@/lib/search";
 import KeySetup from "./components/KeySetup";
 import TaskList from "./components/TaskList";
 
@@ -19,6 +20,9 @@ export default function App() {
   const [extractResult, setExtractResult] = useState<ExtractResult | null>(null);
   // Task list state
   const [tasks, setTasks] = useState<Task[]>([]);
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredTasks = useMemo(() => searchTasks(tasks, searchQuery), [tasks, searchQuery]);
 
   // Send extracted content to background
   const sendToBackground = async (messagePayload: Record<string, unknown>) => {
@@ -245,7 +249,7 @@ export default function App() {
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="m-0 text-lg font-semibold">OpenGradient Task Assistant</h2>
-        <span className="text-xs text-gray-400">v0.4.0</span>
+        <span className="text-xs text-gray-400">v0.5.0</span>
       </div>
 
       {/* Wallet Key */}
@@ -300,7 +304,9 @@ export default function App() {
 
       {/* Task List */}
       <TaskList
-        tasks={tasks}
+        tasks={filteredTasks}
+        searchQuery={searchQuery}
+        onSearch={setSearchQuery}
         onComplete={handleComplete}
         onDelete={handleDelete}
         onSetReminder={handleSetReminder}
@@ -309,7 +315,7 @@ export default function App() {
 
       {/* Footer */}
       <p className="mt-3 text-[11px] text-gray-400 text-center">
-        v0.4.0 -- Reminders + Notifications
+        v0.5.0 -- Reminders + Search
       </p>
     </div>
   );
