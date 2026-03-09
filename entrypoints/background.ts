@@ -155,9 +155,13 @@ export default defineBackground(() => {
     if (message.type === "DELETE_TASK") {
       (async () => {
         try {
+          console.log("[background] DELETE_TASK received, taskId:", message.taskId);
           await deleteTask(message.taskId);
+          const remaining = await getLocalTasks();
+          console.log("[background] DELETE_TASK done, remaining tasks:", remaining.length);
           sendResponse({ success: true });
         } catch (err: unknown) {
+          console.error("[background] DELETE_TASK error:", err);
           sendResponse({
             success: false,
             error: err instanceof Error ? err.message : String(err),

@@ -176,10 +176,21 @@ export default function App() {
     browser.runtime.sendMessage({ type: "COMPLETE_TASK", taskId }).catch(console.error);
   };
 
-  // Optimistic UI: delete task
-  const handleDelete = (taskId: string) => {
+  // Delete task with confirmation from background
+  const handleDelete = async (taskId: string) => {
+    const removed = tasks.find((t) => t.id === taskId);
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
-    browser.runtime.sendMessage({ type: "DELETE_TASK", taskId }).catch(console.error);
+    try {
+      const response = await browser.runtime.sendMessage({ type: "DELETE_TASK", taskId });
+      console.log("[popup] DELETE_TASK response:", response);
+      if (!response?.success) {
+        console.error("[popup] DELETE_TASK failed:", response?.error);
+        if (removed) setTasks((prev) => [...prev, removed]);
+      }
+    } catch (err) {
+      console.error("[popup] DELETE_TASK sendMessage error:", err);
+      if (removed) setTasks((prev) => [...prev, removed]);
+    }
   };
 
   const truncateHash = (hash: string) =>
