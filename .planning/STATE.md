@@ -5,75 +5,69 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Automatically capture action items from any web content and remind users at the right time, with cryptographic proof of privacy through TEE.
-**Current focus:** Phase 2 -- Extraction + AI + Storage Pipeline
+**Current focus:** Phase 3 -- Task UI + Privacy Verification
 
 ## Current Position
 
-Phase: 2 of 4 (Extraction + AI + Storage Pipeline)
-Plan: 2 of 3 in current phase -- COMPLETE (02-01, 02-02)
-Status: Executing Phase 2 plans -- ready for 02-03
-Last activity: 2026-03-01 -- Completed 02-01-PLAN.md (Content Extraction Layer)
+Phase: 3 of 4 (Task UI + Privacy Verification)
+Plan: 1 of 2 in current phase
+Status: Phase 3 Plan 01 COMPLETE. Ready for Plan 02.
+Last activity: 2026-03-09 -- Completed 03-01 Task UI + CRUD
 
-Progress: [████░░░░░░] 40%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: mixed (Plan 01-01: 4min, Plan 01-02: multi-session spike, Plan 02-01: ~2min, Plan 02-02: 2min)
-- Total execution time: ~4 sessions
+- Total plans completed: 6
+- Total execution time: ~6 sessions
 
 **By Phase:**
 
-| Phase | Plans | Total | Avg/Plan |
-|-------|-------|-------|----------|
-| 01-extension-shell-x402-spike | 2/2 | ~3 sessions | varies |
-| 02-extraction-ai-storage-pipeline | 2/3 | ~4min | 2min |
-
-**Recent Trend:**
-- Last 5 plans: 01-01 (4min), 01-02 (multi-session), 02-01 (~2min), 02-02 (2min)
-- Trend: Phase 2 plans executing quickly -- leveraging established x402 patterns
-
-*Updated after each plan completion*
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 01-extension-shell-x402-spike | 2/2 | Complete |
+| 02-extraction-ai-storage-pipeline | 3/3 | Complete |
+| 03-task-ui-privacy-verification | 1/2 | In Progress |
 
 ## Accumulated Context
 
 ### Decisions
 
-Decisions are logged in PROJECT.md Key Decisions table.
-Recent decisions affecting current work:
-
 - [Roadmap]: x402 HTTP gateway chosen over Python SDK (no JS SDK exists, x402 is HTTP-native)
-- [Roadmap]: Local storage before MemSync cloud (extension must work offline first)
-- [Roadmap]: Telegram Web is primary extraction target, one additional platform for MVP
-- [01-01]: Used WXT scaffold template icons instead of custom-generated (sufficient for dev)
-- [01-01]: Installed x402 + viem deps in Plan 01 to avoid package.json conflicts with Plan 02
-- [01-01]: Used @tailwindcss/vite plugin for Tailwind 4.x integration
+- [Roadmap]: Local storage only -- MemSync removed (user decision)
+- [02-03]: Clipboard extraction instead of content scripts (user: "browser Telegram is pointless")
+- [02-03]: MemSync deleted entirely -- chrome.storage.local only
+- [02-03]: Local Node.js proxy required -- TEE server uses self-signed AWS Nitro cert, Chrome can't bypass SSL
+- [02-03]: OCR on proxy via Tesseract.js -- TEE server doesn't support vision/multimodal
+- [02-03]: Endpoint migrated from llm.opengradient.ai to 3.15.214.21:443 (DNS removed)
+- [02-03]: Models renamed: claude-sonnet-4-6, gpt-4.1-2025-04-14 (no provider prefix)
+- [02-03]: Settlement mode: "batch" (not "individual") matching SDK default
+- [02-03]: Private key in chrome.storage.local (persistent, not session)
 - [01-02]: OG uses custom Permit2 contracts, NOT standard x402/Uniswap addresses
 - [01-02]: Payment chain is Base Sepolia (84532) with $OPG token
-- [01-02]: LLM endpoint is llm.opengradient.ai (not llmogevm)
 - [01-02]: "upto" scheme required -- implemented custom UptoEvmScheme
-- [01-02]: Authorization placeholder + X-SETTLEMENT-TYPE: settle-batch headers required
-- [01-02]: SPIKE VERDICT: PASS -- architecture validated
-- [02-02]: System prompt uses 3 few-shot examples (multi-task, single-task, empty) for deterministic JSON output
-- [02-02]: Parser never throws -- always returns array (empty on failure) for resilient pipeline
-- [02-02]: RawTask type defined in task-extractor.ts (intermediate shape before enrichment)
-- [02-02]: extractTasksWithProof uses individual settlement (SETTLE_METADATA) for TEE attestation
-- [02-01]: Content scripts placed at entrypoints/*.content.ts (WXT convention) not entrypoints/content/ subdirectory
-- [02-01]: Generic text selection script chosen as second platform instead of Gmail (universal, zero maintenance)
+- [03-01]: Optimistic UI for task complete/delete -- instant state update, fire-and-forget to background
+- [03-01]: Removed memsyncId/synced from Task type; backward compat in getLocalTasks for old stored tasks
+- [03-01]: KeySetup manages own error state, separate from App.tsx extractResult
 
-### Pending Todos
+### Architecture Notes
 
-None yet.
+- **Proxy** (`proxy.mjs`): Required for 2 reasons: (1) TEE SSL bypass, (2) OCR endpoint
+- **Clipboard flow**: Button click → readText() for text; Ctrl+V paste event → proxy OCR → text
+- **Models**: SDK strips provider prefix (openai/gpt-4.1... → gpt-4.1...)
+- **x402 v2**: Python SDK uses `x402v2` package, JS uses `@x402/fetch` + `@x402/evm`
+- **Popup components**: KeySetup, TaskCard, TaskList in `entrypoints/popup/components/`. All Tailwind, no inline styles.
 
 ### Blockers/Concerns
 
-- ~~x402 gateway + MV3 service worker compatibility is unvalidated~~ RESOLVED: PASS
-- MV3 service worker 30s idle / 5min hard-kill may interrupt AI inference calls
-- MemSync auth bootstrapping flow for new users is unclear
+- ~~x402 gateway + MV3 service worker compatibility~~ RESOLVED: PASS
+- ~~MemSync auth bootstrapping~~ RESOLVED: MemSync removed
+- TEE self-signed SSL requires proxy -- not ideal for distribution
+- TEE doesn't support vision -- OCR workaround adds latency for screenshots
 
 ## Session Continuity
 
-Last session: 2026-03-01
-Stopped at: Completed 02-01-PLAN.md (Content Extraction Layer). Plans 02-01 and 02-02 both done. Ready for 02-03.
+Last session: 2026-03-09
+Stopped at: Completed 03-01-PLAN.md. Task UI with CRUD done. Ready for 03-02 (Privacy Verification).
 Resume file: None
