@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Task } from "@/lib/types";
 import KeySetup from "./components/KeySetup";
 import TaskList from "./components/TaskList";
@@ -43,7 +43,16 @@ export default function App() {
     }
   };
 
-  // On mount: check existing keys, load tasks
+  // Highlight a task by scrolling to it and applying a brief visual highlight
+  const highlightTask = useCallback((taskId: string) => {
+    const el = document.querySelector(`[data-task-id="${taskId}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("bg-amber-100");
+    setTimeout(() => el.classList.remove("bg-amber-100"), 2000);
+  }, []);
+
+  // On mount: check existing keys, load tasks, check for highlight
   useEffect(() => {
     chrome.storage.local.get("ogPrivateKey").then(({ ogPrivateKey }) => {
       if (ogPrivateKey) setKeyStored(true);
@@ -57,7 +66,30 @@ export default function App() {
         }
       })
       .catch((err) => console.warn("[popup] Failed to load tasks:", err));
-  }, []);
+
+    // Check for highlightTaskId (set by notification click)
+    chrome.storage.local.get("highlightTaskId").then(({ highlightTaskId }) => {
+      if (highlightTaskId) {
+        // Delay slightly to let tasks render
+        setTimeout(() => highlightTask(highlightTaskId as string), 300);
+        chrome.storage.local.remove("highlightTaskId");
+      }
+    });
+  }, [highlightTask]);
+
+  // Listen for highlightTaskId changes in storage (notification click while popup open)
+  useEffect(() => {
+    const listener = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
+      if (area !== "local") return;
+      if (changes.highlightTaskId?.newValue) {
+        const taskId = changes.highlightTaskId.newValue as string;
+        setTimeout(() => highlightTask(taskId), 300);
+        chrome.storage.local.remove("highlightTaskId");
+      }
+    };
+    chrome.storage.onChanged.addListener(listener);
+    return () => chrome.storage.onChanged.removeListener(listener);
+  }, [highlightTask]);
 
   // OCR via proxy: send image base64, get text back
   const ocrImage = async (blob: Blob): Promise<string | null> => {
@@ -193,6 +225,18 @@ export default function App() {
     }
   };
 
+  // Optimistic UI: set reminder
+  const handleSetReminder = (taskId: string, reminderAt: string) => {
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, reminderAt } : t));
+    browser.runtime.sendMessage({ type: "SET_REMINDER", taskId, reminderAt }).catch(console.error);
+  };
+
+  // Optimistic UI: clear reminder
+  const handleClearReminder = (taskId: string) => {
+    setTasks((prev) => prev.map((t) => t.id === taskId ? { ...t, reminderAt: null } : t));
+    browser.runtime.sendMessage({ type: "CLEAR_REMINDER", taskId }).catch(console.error);
+  };
+
   const truncateHash = (hash: string) =>
     hash.length > 14 ? `${hash.slice(0, 6)}...${hash.slice(-4)}` : hash;
 
@@ -201,7 +245,7 @@ export default function App() {
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <h2 className="m-0 text-lg font-semibold">OpenGradient Task Assistant</h2>
-        <span className="text-xs text-gray-400">v0.3.0</span>
+        <span className="text-xs text-gray-400">v0.4.0</span>
       </div>
 
       {/* Wallet Key */}
@@ -255,11 +299,17 @@ export default function App() {
       )}
 
       {/* Task List */}
-      <TaskList tasks={tasks} onComplete={handleComplete} onDelete={handleDelete} />
+      <TaskList
+        tasks={tasks}
+        onComplete={handleComplete}
+        onDelete={handleDelete}
+        onSetReminder={handleSetReminder}
+        onClearReminder={handleClearReminder}
+      />
 
       {/* Footer */}
       <p className="mt-3 text-[11px] text-gray-400 text-center">
-        v0.3.0 -- Clipboard Extraction
+        v0.4.0 -- Reminders + Notifications
       </p>
     </div>
   );

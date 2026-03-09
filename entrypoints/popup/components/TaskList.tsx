@@ -5,9 +5,11 @@ interface TaskListProps {
   tasks: Task[];
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
+  onSetReminder: (taskId: string, reminderAt: string) => void;
+  onClearReminder: (taskId: string) => void;
 }
 
-export default function TaskList({ tasks, onComplete, onDelete }: TaskListProps) {
+export default function TaskList({ tasks, onComplete, onDelete, onSetReminder, onClearReminder }: TaskListProps) {
   if (tasks.length === 0) {
     return (
       <div className="text-center text-sm text-gray-400 py-4">
@@ -24,6 +26,8 @@ export default function TaskList({ tasks, onComplete, onDelete }: TaskListProps)
           task={task}
           onComplete={onComplete}
           onDelete={onDelete}
+          onSetReminder={onSetReminder}
+          onClearReminder={onClearReminder}
         />
       ))}
     </div>

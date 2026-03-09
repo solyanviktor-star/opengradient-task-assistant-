@@ -1,10 +1,13 @@
 import type { Task } from "@/lib/types";
 import VerifyBadge from "./VerifyBadge";
+import ReminderPicker from "./ReminderPicker";
 
 interface TaskCardProps {
   task: Task;
   onComplete: (id: string) => void;
   onDelete: (id: string) => void;
+  onSetReminder: (taskId: string, reminderAt: string) => void;
+  onClearReminder: (taskId: string) => void;
 }
 
 const priorityColors: Record<string, { bg: string; text: string }> = {
@@ -21,11 +24,12 @@ const typeLabels: Record<string, string> = {
   reminder: "Reminder",
 };
 
-export default function TaskCard({ task, onComplete, onDelete }: TaskCardProps) {
+export default function TaskCard({ task, onComplete, onDelete, onSetReminder, onClearReminder }: TaskCardProps) {
   const priority = priorityColors[task.priority] ?? { bg: "bg-amber-100", text: "text-amber-600" };
 
   return (
     <div
+      data-task-id={task.id}
       className={`flex items-start gap-2 px-2.5 py-2 border-b border-gray-100 ${
         task.completed ? "opacity-60" : ""
       }`}
@@ -59,7 +63,7 @@ export default function TaskCard({ task, onComplete, onDelete }: TaskCardProps) 
         </div>
 
         {/* Badges row */}
-        <div className="flex items-center gap-1.5 mt-1">
+        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
           <span className="text-[11px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-semibold">
             {typeLabels[task.type] ?? task.type}
           </span>
@@ -71,6 +75,7 @@ export default function TaskCard({ task, onComplete, onDelete }: TaskCardProps) 
               Due: {new Date(task.deadline).toLocaleDateString()}
             </span>
           )}
+          <ReminderPicker task={task} onSetReminder={onSetReminder} onClearReminder={onClearReminder} />
         </div>
 
         {/* Source */}
