@@ -7,9 +7,96 @@ export default defineBackground(() => {
     id: browser.runtime.id,
   });
 
-  // Handle extension install/update
+  const ALARM_PREFIX = "reminder:";
+
+  // ---------------------------------------------------------------
+  // Sync reminders: recreate alarms for tasks with future reminderAt,
+  // clear expired reminderAt fields.
+  // ---------------------------------------------------------------
+  async function syncReminders() {
+    const tasks = await getLocalTasks();
+    const existingAlarms = await chrome.alarms.getAll();
+    const existingNames = new Set(existingAlarms.map((a) => a.name));
+
+    for (const task of tasks) {
+      if (!task.reminderAt) continue;
+      const when = new Date(task.reminderAt).getTime();
+      if (when > Date.now()) {
+        const alarmName = ALARM_PREFIX + task.id;
+        if (!existingNames.has(alarmName)) {
+          chrome.alarms.create(alarmName, { when });
+        }
+      } else {
+        // Expired -- clear the reminderAt field
+        await updateTask(task.id, { reminderAt: null });
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // chrome.alarms.onAlarm: Fire notification when reminder alarm triggers
+  // MUST be registered synchronously at top level for MV3.
+  // ---------------------------------------------------------------
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (!alarm.name.startsWith(ALARM_PREFIX)) return;
+    const taskId = alarm.name.slice(ALARM_PREFIX.length);
+
+    (async () => {
+      const tasks = await getLocalTasks();
+      const task = tasks.find((t) => t.id === taskId);
+      if (!task) return;
+
+      chrome.notifications.create(alarm.name, {
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("/128.png"),
+        title: "Task Reminder",
+        message: task.action,
+        priority: 2,
+      });
+
+      // Clear the reminderAt field after notification
+      await updateTask(taskId, { reminderAt: null });
+    })();
+  });
+
+  // ---------------------------------------------------------------
+  // chrome.notifications.onClicked: Open popup and highlight the task
+  // MUST be registered synchronously at top level for MV3.
+  // ---------------------------------------------------------------
+  chrome.notifications.onClicked.addListener((notificationId) => {
+    if (!notificationId.startsWith(ALARM_PREFIX)) return;
+    const taskId = notificationId.slice(ALARM_PREFIX.length);
+
+    (async () => {
+      // Store which task to highlight
+      await chrome.storage.local.set({ highlightTaskId: taskId });
+
+      // Try to open popup, fallback to tab
+      try {
+        await chrome.action.openPopup();
+      } catch {
+        await chrome.tabs.create({ url: chrome.runtime.getURL("/popup.html") });
+      }
+
+      // Clear the notification
+      chrome.notifications.clear(notificationId);
+    })();
+  });
+
+  // ---------------------------------------------------------------
+  // Handle extension install/update -- sync reminders
+  // ---------------------------------------------------------------
   browser.runtime.onInstalled.addListener((details) => {
     console.log("[background] Extension installed/updated:", details.reason);
+    syncReminders();
+  });
+
+  // ---------------------------------------------------------------
+  // Handle browser startup -- sync reminders
+  // ---------------------------------------------------------------
+  browser.runtime.onStartup.addListener(() => {
+    console.log("[background] Browser startup -- syncing reminders");
+    syncReminders();
   });
 
   // Handle messages from popup or content scripts
@@ -52,6 +139,7 @@ export default defineBackground(() => {
             txHash,
             completed: false,
             completedAt: null,
+            reminderAt: null,
           }));
 
           // 4. Save locally
@@ -120,6 +208,48 @@ export default defineBackground(() => {
         .catch((err: Error) =>
           sendResponse({ success: false, error: err.message }),
         );
+      return true;
+    }
+
+    // ---------------------------------------------------------------
+    // SET_REMINDER: Schedule a reminder alarm for a task
+    // ---------------------------------------------------------------
+    if (message.type === "SET_REMINDER") {
+      (async () => {
+        try {
+          const { taskId, reminderAt } = message;
+          await updateTask(taskId, { reminderAt });
+          const when = new Date(reminderAt).getTime();
+          if (when > Date.now()) {
+            chrome.alarms.create(ALARM_PREFIX + taskId, { when });
+          }
+          sendResponse({ success: true });
+        } catch (err: unknown) {
+          sendResponse({
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
+      return true;
+    }
+
+    // ---------------------------------------------------------------
+    // CLEAR_REMINDER: Remove a reminder alarm from a task
+    // ---------------------------------------------------------------
+    if (message.type === "CLEAR_REMINDER") {
+      (async () => {
+        try {
+          await updateTask(message.taskId, { reminderAt: null });
+          await chrome.alarms.clear(ALARM_PREFIX + message.taskId);
+          sendResponse({ success: true });
+        } catch (err: unknown) {
+          sendResponse({
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })();
       return true;
     }
 

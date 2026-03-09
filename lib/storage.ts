@@ -28,6 +28,7 @@ export async function getLocalTasks(): Promise<Task[]> {
       ...t,
       completed: t.completed ?? false,
       completedAt: t.completedAt ?? null,
+      reminderAt: t.reminderAt ?? null,
     }))
     .sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),

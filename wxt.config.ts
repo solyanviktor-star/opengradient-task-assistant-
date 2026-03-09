@@ -10,12 +10,11 @@ export default defineConfig({
   manifest: {
     name: 'OpenGradient Task Assistant',
     description: 'AI-powered task extraction with TEE-verified privacy',
-    version: '0.1.0',
-    permissions: ['storage', 'activeTab'],
+    version: '0.4.0',
+    permissions: ['storage', 'activeTab', 'clipboardRead', 'alarms', 'notifications'],
     host_permissions: [
-      'https://llm.opengradient.ai/*',
+      'http://localhost:8402/*',
       'https://sepolia.base.org/*',
-      'https://api.memchat.io/*',
       'https://web.telegram.org/*',
     ],
   },

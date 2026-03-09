@@ -11,6 +11,7 @@ export interface Task {
   txHash: string | null;         // On-chain transaction hash from x402 payment
   completed: boolean;            // Whether task is marked complete
   completedAt: string | null;    // ISO 8601 timestamp when completed, or null
+  reminderAt: string | null;     // ISO 8601 datetime for scheduled reminder, or null
 }
 
 // Message types for content script -> background communication
