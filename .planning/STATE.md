@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-14)
 
 **Core value:** Automatically capture action items from any web content and remind users at the right time, with cryptographic proof of privacy through TEE.
-**Current focus:** Phase 4 -- Notification + Polish
+**Current focus:** Phase 4 -- Reminders + Search
 
 ## Current Position
 
-Phase: 3 of 4 (Task UI + Privacy Verification) -- COMPLETE
-Plan: 2 of 2 in current phase (DONE)
-Status: Phase 3 COMPLETE. All plans done. Ready for Phase 4.
-Last activity: 2026-03-09 -- Completed 03-02 Privacy Verification Badges
+Phase: 4 of 4 (Reminders + Search)
+Plan: 1 of 2 in current phase (DONE)
+Status: Plan 04-01 complete. Reminder system shipped. Plan 04-02 next.
+Last activity: 2026-03-10 -- Completed 04-01 Reminder System
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Total execution time: ~6 sessions
+- Total plans completed: 8
+- Total execution time: ~7 sessions
 
 **By Phase:**
 
@@ -29,6 +29,11 @@ Progress: [████████░░] 80%
 | 01-extension-shell-x402-spike | 2/2 | Complete |
 | 02-extraction-ai-storage-pipeline | 3/3 | Complete |
 | 03-task-ui-privacy-verification | 2/2 | Complete |
+| 04-reminders-search | 1/2 | In Progress |
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| 04-01 | 5min | 2 | 8 |
 
 ## Accumulated Context
 
@@ -52,15 +57,22 @@ Progress: [████████░░] 80%
 - [03-01]: KeySetup manages own error state, separate from App.tsx extractResult
 - [03-02]: VerifyBadge 2-tier display: green Verified (anchor to explorer) when txHash present, gray TEE (span) when null
 - [03-02]: Changed handleDelete from fire-and-forget to async/await with rollback -- fire-and-forget was not persisting deletes
+- [04-01]: ALARM_PREFIX "reminder:" namespacing for alarm/notification ID isolation
+- [04-01]: Optimistic UI for set/clear reminder -- instant update, fire-and-forget to background
+- [04-01]: highlightTaskId in chrome.storage.local for notification-click-to-popup cross-context communication
+- [04-01]: chrome.action.openPopup() with fallback to chrome.tabs.create for notification click
+- [04-01]: syncReminders on both onInstalled and onStartup for service worker lifecycle coverage
 
 ### Architecture Notes
 
 - **Proxy** (`proxy.mjs`): Required for 2 reasons: (1) TEE SSL bypass, (2) OCR endpoint
-- **Clipboard flow**: Button click → readText() for text; Ctrl+V paste event → proxy OCR → text
-- **Models**: SDK strips provider prefix (openai/gpt-4.1... → gpt-4.1...)
+- **Clipboard flow**: Button click -> readText() for text; Ctrl+V paste event -> proxy OCR -> text
+- **Models**: SDK strips provider prefix (openai/gpt-4.1... -> gpt-4.1...)
 - **x402 v2**: Python SDK uses `x402v2` package, JS uses `@x402/fetch` + `@x402/evm`
-- **Popup components**: KeySetup, TaskCard, TaskList, VerifyBadge in `entrypoints/popup/components/`. All Tailwind, no inline styles.
+- **Popup components**: KeySetup, TaskCard, TaskList, VerifyBadge, ReminderPicker in `entrypoints/popup/components/`. All Tailwind, no inline styles.
 - **VerifyBadge**: 2-tier badge -- green "Verified" links to `explorer.opengradient.ai/tx/{txHash}`, gray "TEE" when no txHash.
+- **Reminder flow**: ReminderPicker (UI) -> App.tsx (optimistic + sendMessage) -> background.ts (chrome.alarms.create) -> onAlarm (chrome.notifications.create) -> onClicked (openPopup + highlightTaskId)
+- **MV3 event listeners**: chrome.alarms.onAlarm and chrome.notifications.onClicked registered synchronously at top level of defineBackground callback.
 
 ### Blockers/Concerns
 
@@ -71,6 +83,6 @@ Progress: [████████░░] 80%
 
 ## Session Continuity
 
-Last session: 2026-03-09
-Stopped at: Completed 03-02-PLAN.md. Phase 3 complete. Task UI + Privacy Verification all done. Ready for Phase 4.
+Last session: 2026-03-10
+Stopped at: Completed 04-01-PLAN.md. Reminder system shipped (alarms, notifications, picker UI, highlight flow). Ready for 04-02.
 Resume file: None
