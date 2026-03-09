@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
 import type { Task } from "@/lib/types";
+import KeySetup from "./components/KeySetup";
+import TaskList from "./components/TaskList";
+
+const OCR_ENDPOINT = "http://localhost:8402/ocr";
 
 type ExtractResult = {
   success: boolean;
@@ -9,92 +13,21 @@ type ExtractResult = {
 };
 
 export default function App() {
-  // Key management state
-  const [privateKey, setPrivateKey] = useState("");
   const [keyStored, setKeyStored] = useState(false);
-  const [memsyncKey, setMemsyncKey] = useState("");
-  const [memsyncKeyStored, setMemsyncKeyStored] = useState(false);
-
   // Extraction state
   const [extracting, setExtracting] = useState(false);
   const [extractResult, setExtractResult] = useState<ExtractResult | null>(null);
-
   // Task list state
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  // On mount: check existing keys and load tasks
-  useEffect(() => {
-    // Check wallet key
-    chrome.storage.session.get("ogPrivateKey").then(({ ogPrivateKey }) => {
-      if (ogPrivateKey) setKeyStored(true);
-    });
-
-    // Check MemSync key
-    chrome.storage.local.get("memsyncApiKey").then(({ memsyncApiKey }) => {
-      if (memsyncApiKey) setMemsyncKeyStored(true);
-    });
-
-    // Load existing tasks
-    browser.runtime
-      .sendMessage({ type: "GET_TASKS" })
-      .then((response) => {
-        if (response?.success && response.tasks) {
-          setTasks(response.tasks);
-        }
-      })
-      .catch((err) => console.warn("[popup] Failed to load tasks:", err));
-  }, []);
-
-  const saveKey = async () => {
-    if (!privateKey.startsWith("0x") || privateKey.length !== 66) {
-      setExtractResult({
-        success: false,
-        error: "Invalid private key format (must be 0x + 64 hex chars)",
-      });
-      return;
-    }
-    const response = await browser.runtime.sendMessage({
-      type: "SAVE_PRIVATE_KEY",
-      key: privateKey,
-    });
-    if (response.success) {
-      setKeyStored(true);
-      setPrivateKey("");
-      setExtractResult(null);
-    } else {
-      setExtractResult({ success: false, error: response.error });
-    }
-  };
-
-  const saveMemsyncKey = async () => {
-    if (!memsyncKey.trim()) {
-      setExtractResult({ success: false, error: "MemSync API key cannot be empty" });
-      return;
-    }
-    const response = await browser.runtime.sendMessage({
-      type: "SAVE_MEMSYNC_KEY",
-      key: memsyncKey.trim(),
-    });
-    if (response.success) {
-      setMemsyncKeyStored(true);
-      setMemsyncKey("");
-      setExtractResult(null);
-    } else {
-      setExtractResult({ success: false, error: response.error });
-    }
-  };
-
-  const triggerExtraction = async (platform: "telegram" | "selection") => {
+  // Send extracted content to background
+  const sendToBackground = async (messagePayload: Record<string, unknown>) => {
     setExtracting(true);
     setExtractResult(null);
     try {
-      const response = await browser.runtime.sendMessage({
-        type: "TRIGGER_EXTRACTION",
-        platform,
-      });
+      const response = await browser.runtime.sendMessage(messagePayload);
       setExtractResult(response);
       if (response?.success && response.tasks) {
-        // Prepend new tasks to the list
         setTasks((prev) => {
           const existingIds = new Set(prev.map((t) => t.id));
           const newOnes = (response.tasks as Task[]).filter(
@@ -110,278 +43,200 @@ export default function App() {
     }
   };
 
+  // On mount: check existing keys, load tasks
+  useEffect(() => {
+    chrome.storage.local.get("ogPrivateKey").then(({ ogPrivateKey }) => {
+      if (ogPrivateKey) setKeyStored(true);
+    });
+
+    browser.runtime
+      .sendMessage({ type: "GET_TASKS" })
+      .then((response) => {
+        if (response?.success && response.tasks) {
+          setTasks(response.tasks);
+        }
+      })
+      .catch((err) => console.warn("[popup] Failed to load tasks:", err));
+  }, []);
+
+  // OCR via proxy: send image base64, get text back
+  const ocrImage = async (blob: Blob): Promise<string | null> => {
+    const base64: string = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+    const resp = await fetch(OCR_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imageBase64: base64 }),
+    });
+    const data = await resp.json();
+    return data.text?.trim() || null;
+  };
+
+  // Paste listener for screenshots (Ctrl+V)
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (extracting || !keyStored) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) continue;
+          setExtracting(true);
+          setExtractResult(null);
+          try {
+            const ocrText = await ocrImage(blob);
+            if (!ocrText) {
+              setExtractResult({ success: false, error: "OCR found no text in screenshot." });
+              setExtracting(false);
+              return;
+            }
+            sendToBackground({ type: "EXTRACT_FROM_CLIPBOARD", inputType: "text", text: ocrText });
+          } catch {
+            setExtractResult({ success: false, error: "OCR failed. Is proxy running?" });
+            setExtracting(false);
+          }
+          return;
+        }
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [extracting, keyStored]);
+
+  // Button click: try image from clipboard first, fall back to text
+  const extractFromClipboard = async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const imageType = item.types.find((t) => t.startsWith("image/"));
+        if (imageType) {
+          const blob = await item.getType(imageType);
+          setExtracting(true);
+          setExtractResult(null);
+          try {
+            const ocrText = await ocrImage(blob);
+            if (!ocrText) {
+              setExtractResult({ success: false, error: "OCR found no text in screenshot." });
+              setExtracting(false);
+              return;
+            }
+            sendToBackground({ type: "EXTRACT_FROM_CLIPBOARD", inputType: "text", text: ocrText });
+          } catch {
+            setExtractResult({ success: false, error: "OCR failed. Is proxy running?" });
+            setExtracting(false);
+          }
+          return;
+        }
+      }
+    } catch {
+      // clipboard.read() not available -- fall through to readText
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        setExtractResult({
+          success: false,
+          error: "Clipboard is empty. For screenshots use Ctrl+V in the popup.",
+        });
+        return;
+      }
+      sendToBackground({
+        type: "EXTRACT_FROM_CLIPBOARD",
+        inputType: "text",
+        text,
+      });
+    } catch {
+      setExtractResult({
+        success: false,
+        error: "Cannot read clipboard. Check extension permissions.",
+      });
+    }
+  };
+
+  // Optimistic UI: toggle task completion
+  const handleComplete = (taskId: string) => {
+    setTasks((prev) =>
+      prev.map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              completed: !t.completed,
+              completedAt: !t.completed ? new Date().toISOString() : null,
+            }
+          : t,
+      ),
+    );
+    browser.runtime.sendMessage({ type: "COMPLETE_TASK", taskId }).catch(console.error);
+  };
+
+  // Optimistic UI: delete task
+  const handleDelete = (taskId: string) => {
+    setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    browser.runtime.sendMessage({ type: "DELETE_TASK", taskId }).catch(console.error);
+  };
+
   const truncateHash = (hash: string) =>
     hash.length > 14 ? `${hash.slice(0, 6)}...${hash.slice(-4)}` : hash;
 
-  const priorityColors: Record<string, string> = {
-    high: "#dc2626",
-    medium: "#d97706",
-    low: "#16a34a",
-  };
-
-  const typeLabels: Record<string, string> = {
-    call: "Call",
-    meeting: "Meeting",
-    task: "Task",
-    note: "Note",
-    reminder: "Reminder",
-  };
-
   return (
-    <div style={{ width: 380, padding: 16, fontFamily: "system-ui, sans-serif" }}>
+    <div className="w-[380px] p-4 font-sans">
       {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: 16,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 18 }}>OpenGradient Task Assistant</h2>
-        <span style={{ fontSize: 11, color: "#9ca3af" }}>v0.2.0</span>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="m-0 text-lg font-semibold">OpenGradient Task Assistant</h2>
+        <span className="text-xs text-gray-400">v0.3.0</span>
       </div>
 
-      {/* Wallet Key Section */}
-      <div
-        style={{
-          marginBottom: 12,
-          padding: 10,
-          backgroundColor: "#f9fafb",
-          borderRadius: 6,
-          border: "1px solid #e5e7eb",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#374151",
-            marginBottom: 6,
-          }}
-        >
-          Wallet Key
-        </div>
-        {!keyStored ? (
-          <div>
-            <input
-              type="password"
-              value={privateKey}
-              onChange={(e) => setPrivateKey(e.target.value)}
-              placeholder="0x..."
-              style={{
-                width: "100%",
-                padding: 6,
-                marginBottom: 6,
-                border: "1px solid #d1d5db",
-                borderRadius: 4,
-                fontSize: 13,
-                boxSizing: "border-box",
-              }}
-            />
-            <button
-              onClick={saveKey}
-              style={{
-                width: "100%",
-                padding: "6px 12px",
-                backgroundColor: "#4f46e5",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              Save Key (session only)
-            </button>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              color: "#16a34a",
-              fontWeight: 500,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: "#16a34a",
-                display: "inline-block",
-              }}
-            />
-            Configured (session storage)
-          </div>
-        )}
-      </div>
+      {/* Wallet Key */}
+      <KeySetup keyStored={keyStored} onKeyStored={() => setKeyStored(true)} />
 
-      {/* MemSync Key Section */}
-      <div
-        style={{
-          marginBottom: 12,
-          padding: 10,
-          backgroundColor: "#f9fafb",
-          borderRadius: 6,
-          border: "1px solid #e5e7eb",
-        }}
-      >
-        <div
-          style={{
-            fontSize: 12,
-            fontWeight: 600,
-            color: "#374151",
-            marginBottom: 6,
-          }}
-        >
-          MemSync API Key{" "}
-          <span style={{ fontWeight: 400, color: "#9ca3af" }}>(optional)</span>
-        </div>
-        {!memsyncKeyStored ? (
-          <div>
-            <input
-              type="password"
-              value={memsyncKey}
-              onChange={(e) => setMemsyncKey(e.target.value)}
-              placeholder="ms-..."
-              style={{
-                width: "100%",
-                padding: 6,
-                marginBottom: 6,
-                border: "1px solid #d1d5db",
-                borderRadius: 4,
-                fontSize: 13,
-                boxSizing: "border-box",
-              }}
-            />
-            <button
-              onClick={saveMemsyncKey}
-              style={{
-                width: "100%",
-                padding: "6px 12px",
-                backgroundColor: "#6366f1",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              Save MemSync Key
-            </button>
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              fontSize: 13,
-              color: "#16a34a",
-              fontWeight: 500,
-            }}
-          >
-            <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: "#16a34a",
-                display: "inline-block",
-              }}
-            />
-            Configured (persistent)
-          </div>
-        )}
-      </div>
-
-      {/* Extraction Section (only when wallet key is configured) */}
+      {/* Extraction Section */}
       {keyStored && (
-        <div style={{ marginBottom: 12 }}>
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
-              marginBottom: 8,
-            }}
-          >
+        <div className="mb-3">
+          <div className="mb-2">
             <button
-              onClick={() => triggerExtraction("telegram")}
+              onClick={extractFromClipboard}
               disabled={extracting}
-              style={{
-                flex: 1,
-                padding: "8px 10px",
-                backgroundColor: extracting ? "#9ca3af" : "#4f46e5",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: extracting ? "not-allowed" : "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
+              className={`w-full py-2.5 px-3 text-white border-none rounded cursor-pointer text-sm font-semibold ${
+                extracting
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-indigo-600 hover:bg-indigo-700"
+              }`}
             >
-              Extract from Telegram
+              {extracting ? "Processing..." : "Extract from Clipboard"}
             </button>
-            <button
-              onClick={() => triggerExtraction("selection")}
-              disabled={extracting}
-              style={{
-                flex: 1,
-                padding: "8px 10px",
-                backgroundColor: extracting ? "#9ca3af" : "#2563eb",
-                color: "white",
-                border: "none",
-                borderRadius: 4,
-                cursor: extracting ? "not-allowed" : "pointer",
-                fontSize: 13,
-                fontWeight: 500,
-              }}
-            >
-              Extract Selected Text
-            </button>
-          </div>
-          {extracting && (
-            <div
-              style={{
-                textAlign: "center",
-                fontSize: 13,
-                color: "#6366f1",
-                padding: 8,
-              }}
-            >
-              Extracting tasks...
+            <div className="text-[11px] text-gray-400 mt-1.5 text-center">
+              Text: click button | Screenshot: Ctrl+V
             </div>
-          )}
+          </div>
         </div>
       )}
 
       {/* Result Banner */}
       {extractResult && (
         <div
-          style={{
-            marginBottom: 12,
-            padding: 10,
-            backgroundColor: extractResult.success ? "#dcfce7" : "#fee2e2",
-            borderRadius: 6,
-            border: `1px solid ${extractResult.success ? "#86efac" : "#fca5a5"}`,
-          }}
+          className={`mb-3 p-2.5 rounded-md border ${
+            extractResult.success
+              ? "bg-green-100 border-green-300"
+              : "bg-red-100 border-red-300"
+          }`}
         >
-          <strong style={{ fontSize: 13 }}>
+          <strong className="text-sm">
             {extractResult.success ? "SUCCESS" : "FAILED"}
           </strong>
-          <p style={{ margin: "4px 0 0", fontSize: 12 }}>
+          <p className="mt-1 mb-0 text-xs">
             {extractResult.success
               ? `Found ${extractResult.tasks?.length ?? 0} task(s)`
               : extractResult.error}
           </p>
           {extractResult.success && extractResult.txHash && (
-            <p style={{ margin: "2px 0 0", fontSize: 11, color: "#666" }}>
+            <p className="mt-0.5 mb-0 text-[11px] text-gray-500">
               TX: {truncateHash(extractResult.txHash)}
             </p>
           )}
@@ -389,151 +244,11 @@ export default function App() {
       )}
 
       {/* Task List */}
-      <div
-        style={{
-          maxHeight: 300,
-          overflowY: "auto",
-          borderRadius: 6,
-          border: tasks.length > 0 ? "1px solid #e5e7eb" : "none",
-        }}
-      >
-        {tasks.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              fontSize: 13,
-              color: "#9ca3af",
-              padding: 16,
-            }}
-          >
-            No tasks yet. Extract some from a page!
-          </div>
-        ) : (
-          tasks.map((task) => (
-            <div
-              key={task.id}
-              style={{
-                padding: "8px 10px",
-                borderBottom: "1px solid #f3f4f6",
-                fontSize: 13,
-              }}
-            >
-              {/* Task header row */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 2,
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 5px",
-                      backgroundColor: "#e0e7ff",
-                      color: "#4338ca",
-                      borderRadius: 3,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {typeLabels[task.type] ?? task.type}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: "1px 5px",
-                      backgroundColor: `${priorityColors[task.priority] ?? "#d97706"}20`,
-                      color: priorityColors[task.priority] ?? "#d97706",
-                      borderRadius: 3,
-                      fontWeight: 600,
-                    }}
-                  >
-                    {task.priority}
-                  </span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {/* Synced indicator dot */}
-                  <span
-                    title={task.synced ? "Synced to MemSync" : "Not synced"}
-                    style={{
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      backgroundColor: task.synced ? "#16a34a" : "#eab308",
-                      display: "inline-block",
-                    }}
-                  />
-                  {task.txHash && (
-                    <a
-                      href={`https://explorer.opengradient.ai/tx/${task.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        fontSize: 10,
-                        color: "#6366f1",
-                        textDecoration: "none",
-                      }}
-                      title={task.txHash}
-                    >
-                      tx
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Action text */}
-              <div style={{ fontWeight: 600, lineHeight: 1.3 }}>{task.action}</div>
-
-              {/* Deadline + source */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  fontSize: 11,
-                  color: "#6b7280",
-                  marginTop: 2,
-                }}
-              >
-                <span>
-                  {task.deadline
-                    ? `Due: ${new Date(task.deadline).toLocaleDateString()}`
-                    : "No deadline"}
-                </span>
-                <a
-                  href={task.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: "#6b7280",
-                    textDecoration: "none",
-                    maxWidth: 140,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    display: "inline-block",
-                  }}
-                  title={task.sourceUrl}
-                >
-                  {task.sourceUrl.replace(/^https?:\/\//, "").slice(0, 30)}
-                </a>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      <TaskList tasks={tasks} onComplete={handleComplete} onDelete={handleDelete} />
 
       {/* Footer */}
-      <p
-        style={{
-          marginTop: 12,
-          fontSize: 11,
-          color: "#aaa",
-          textAlign: "center",
-        }}
-      >
-        v0.2.0 -- Extraction Pipeline
+      <p className="mt-3 text-[11px] text-gray-400 text-center">
+        v0.3.0 -- Clipboard Extraction
       </p>
     </div>
   );
