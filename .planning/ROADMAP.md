@@ -13,7 +13,7 @@ This roadmap delivers an AI-powered Chrome extension that extracts tasks from we
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Extension Shell + x402 Spike** - Working MV3 extension that proves OpenGradient x402 gateway works from a service worker
-- [ ] **Phase 2: Extraction + AI + Storage Pipeline** - End-to-end flow from page content to TEE-verified AI extraction to stored tasks
+- [x] **Phase 2: Extraction + AI + Storage Pipeline** - End-to-end flow from page content to TEE-verified AI extraction to stored tasks
 - [ ] **Phase 3: Task UI + Privacy Verification** - User-facing task management with TEE verification badges and on-chain proof display
 - [ ] **Phase 4: Reminders + Search** - Push notification reminders and semantic search over stored tasks
 
@@ -61,11 +61,11 @@ Plans:
   3. User can delete a task and it disappears from the list
   4. Each task shows a TEE verification badge indicating its cryptographic attestation status
   5. User can click a proof link on any task to view the on-chain transaction in OpenGradient's block explorer
-**Plans**: TBD
+**Plans:** 2 plans
 
 Plans:
-- [ ] 03-01: Task list popup UI with CRUD operations
-- [ ] 03-02: Privacy verification badges and on-chain proof display
+- [ ] 03-01-PLAN.md -- Task type extension, storage CRUD, component refactoring with Tailwind, complete/delete operations
+- [ ] 03-02-PLAN.md -- TEE verification badges (VerifyBadge component), on-chain proof links, visual checkpoint
 
 ### Phase 4: Reminders + Search
 **Goal**: User can set reminders on tasks and search through all stored tasks using natural language
@@ -90,6 +90,6 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Extension Shell + x402 Spike | 2/2 | Complete | 2026-03-01 |
-| 2. Extraction + AI + Storage Pipeline | 0/3 | Not started | - |
+| 2. Extraction + AI + Storage Pipeline | 3/3 | Complete | 2026-03-09 |
 | 3. Task UI + Privacy Verification | 0/2 | Not started | - |
 | 4. Reminders + Search | 0/2 | Not started | - |
