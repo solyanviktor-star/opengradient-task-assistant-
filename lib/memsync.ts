@@ -14,9 +14,6 @@ export class MemSyncClient {
 
   /**
    * Save tasks as memories in MemSync.
-   *
-   * Each task is formatted as a user message with structured text describing the task.
-   * Messages are grouped under a single thread_id for chronological retrieval.
    */
   async saveMemories(
     tasks: Task[],
@@ -30,7 +27,7 @@ export class MemSyncClient {
           task.deadline ? `Deadline: ${task.deadline}` : null,
           `Priority: ${task.priority}`,
           task.context ? `Context: ${task.context}` : null,
-          `Source: ${task.sourceUrl}`,
+          task.tags?.length ? `Tags: ${task.tags.join(', ')}` : null,
           task.txHash ? `TX: ${task.txHash}` : null,
         ]
           .filter(Boolean)
@@ -99,5 +96,26 @@ export class MemSyncClient {
         error: err instanceof Error ? err.message : String(err),
       };
     }
+  }
+}
+
+/** Get MemSync client if API key is configured. Returns null otherwise. */
+export async function getMemSyncClient(): Promise<MemSyncClient | null> {
+  const { memsyncApiKey } = await chrome.storage.local.get('memsyncApiKey');
+  if (!memsyncApiKey) return null;
+  return new MemSyncClient(memsyncApiKey as string);
+}
+
+/** Auto-sync tasks to MemSync after extraction (fire-and-forget). */
+export async function syncTasksToMemSync(tasks: Task[]): Promise<void> {
+  const client = await getMemSyncClient();
+  if (!client || tasks.length === 0) return;
+
+  const threadId = `tasks-${new Date().toISOString().split('T')[0]}`;
+  const result = await client.saveMemories(tasks, threadId);
+  if (result.success) {
+    console.log(`[MemSync] Synced ${tasks.length} task(s)`);
+  } else {
+    console.warn('[MemSync] Sync failed:', result.error);
   }
 }

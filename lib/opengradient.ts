@@ -4,12 +4,14 @@ import { privateKeyToAccount } from "viem/accounts";
 import { getAddress, toHex } from "viem";
 import {
   TASK_EXTRACTION_SYSTEM_PROMPT,
+  buildSystemPrompt,
   parseTasksFromLLMResponse,
   type RawTask,
 } from "@/lib/task-extractor";
+import { getTagPatterns } from "@/lib/storage";
 
 const OG_LLM_ENDPOINT =
-  "https://llm.opengradient.ai/v1/chat/completions";
+  "https://og-proxy-production.up.railway.app/v1/chat/completions";
 
 /** OpenGradient's custom Permit2 contract (NOT the standard Uniswap Permit2) */
 const OG_PERMIT2_ADDRESS = "0xA2820a4d4F3A8c5Fa4eaEBF45B093173105a8f8F";
@@ -148,7 +150,7 @@ export async function testLLMCall(x402Fetch: typeof fetch): Promise<{
         "X-SETTLEMENT-TYPE": "settle-batch",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "openai/gpt-4o",
         messages: [
           {
             role: "user",
@@ -201,22 +203,21 @@ export async function extractTasksWithProof(
   x402Fetch: typeof fetch,
   text: string,
 ): Promise<{ rawTasks: RawTask[]; txHash: string | null }> {
+  const patterns = await getTagPatterns();
+  const systemPrompt = buildSystemPrompt(patterns);
+
   const response = await x402Fetch(OG_LLM_ENDPOINT, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      // Placeholder authorization -- x402 library handles real payment auth via Permit2
       Authorization:
         "Bearer 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
-      // SETTLE_METADATA: records full model info, complete input/output, all metadata on-chain
       "X-SETTLEMENT-TYPE": "individual",
     },
     body: JSON.stringify({
-      // Primary model: Claude 4.0 Sonnet (AI-02)
-      // Fallback: "openai/gpt-4o" -- proven working in Phase 1 spike
-      model: "anthropic/claude-4.0-sonnet",
+      model: "claude-sonnet-4-20250514",
       messages: [
-        { role: "system", content: TASK_EXTRACTION_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: text },
       ],
       max_tokens: 2000,
@@ -246,7 +247,56 @@ export async function extractTasksWithProof(
   // Parse LLM response (OpenAI chat completions format)
   const data = await response.json();
   const content: string = data.choices?.[0]?.message?.content ?? "";
+  console.log("[extractTasksWithProof] LLM response content:", content.slice(0, 500));
   const rawTasks = parseTasksFromLLMResponse(content);
+  console.log("[extractTasksWithProof] Parsed tasks:", rawTasks.length);
 
   return { rawTasks, txHash };
 }
+
+/** Groq key — used ONLY for Whisper transcription (from .env) */
+const GROQ_KEY = import.meta.env.VITE_GROQ_KEY ?? "";
+
+/**
+ * Transcribe audio via Groq Whisper (free, reliable, any language).
+ */
+export async function transcribeAudio(
+  audioDataUrl: string,
+  lang?: string,
+): Promise<string> {
+  const dataResp = await fetch(audioDataUrl);
+  const blob = await dataResp.blob();
+
+  console.log("[transcribe] blob size:", blob.size, "type:", blob.type);
+
+  const ext = blob.type.includes("ogg") ? "ogg"
+    : blob.type.includes("mp4") ? "mp4"
+    : "webm";
+
+  const formData = new FormData();
+  formData.append("file", blob, `recording.${ext}`);
+  formData.append("model", "whisper-large-v3-turbo");
+  if (lang) formData.append("language", lang.split("-")[0]);
+
+  const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${GROQ_KEY}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Whisper transcription failed: ${response.status}: ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.text || "";
+}
+
+/**
+ * extractTasksFromImage is removed — OpenGradient TEE does not support vision/multimodal.
+ * Screenshots are handled by OCR (Tesseract.js) in the popup, then sent as text
+ * through extractTasksWithProof.
+ */

@@ -5,6 +5,8 @@ const fuseOptions: Fuse.IFuseOptions<Task> = {
   keys: [
     { name: 'action', weight: 2 },
     { name: 'context', weight: 1.5 },
+    { name: 'category', weight: 1 },
+    { name: 'tags', weight: 1 },
     { name: 'type', weight: 0.5 },
     { name: 'priority', weight: 0.3 },
   ],
