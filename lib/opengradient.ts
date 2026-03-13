@@ -215,7 +215,7 @@ export async function extractTasksWithProof(
       "X-SETTLEMENT-TYPE": "individual",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-6",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: text },
